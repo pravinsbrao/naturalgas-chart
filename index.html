@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NATURALGAS Chart with Auto Buy Signals</title>
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    body { margin: 0; background: #111; color: #fff; font-family: Arial; }
+    #chart { height: 80vh; margin: 1rem; }
+    #signal { margin: 1rem; padding: 1rem; font-size: 1.2rem; font-weight: bold; background: #222; border-left: 6px solid; }
+    .buy { border-color: #0f0; color: #0f0; }
+    .wait { border-color: #888; color: #aaa; }
+  </style>
+</head>
+<body>
+  <div id="chart"></div>
+  <div id="signal" class="wait">Fetching data...</div>
+
+  <script>
+    const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+      layout: { background: { color: '#111' }, textColor: '#DDD' },
+      grid: { vertLines: { color: '#333' }, horzLines: { color: '#333' } },
+    });
+    const candleSeries = chart.addCandlestickSeries();
+
+    async function fetchData() {
+      try {
+        const res = await fetch('https://natgas-proxy.onrender.com/natgas');
+        const data = await res.json();
+        const prices = data.chart.result[0];
+        const candles = prices.indicators.quote[0];
+        const timestamps = prices.timestamp;
+
+        const cdata = timestamps.map((t, i) => ({
+          time: t,
+          open: candles.open[i],
+          high: candles.high[i],
+          low: candles.low[i],
+          close: candles.close[i]
+        })).filter(d => d.open && d.close);
+
+        candleSeries.setData(cdata);
+        checkSignal(cdata);
+      } catch (e) {
+        document.getElementById('signal').textContent = '❌ Error fetching data. Is backend running?';
+      }
+    }
+
+    function checkSignal(candles) {
+      const last = candles[candles.length - 1];
+      const prev = candles[candles.length - 2];
+      const signalEl = document.getElementById('signal');
+
+      if (last.close > last.open && last.open > prev.close) {
+        signalEl.textContent = '💹 BUY SIGNAL — Momentum Confirmed';
+        signalEl.className = 'buy';
+      } else {
+        signalEl.textContent = '⏳ WAIT — No strong signal yet';
+        signalEl.className = 'wait';
+      }
+    }
+
+    fetchData();
+    setInterval(fetchData, 60000); // refresh every 1 min
+  </script>
+</body>
+</html>
